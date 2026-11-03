@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Keep launcher icons on a neutral dark surface, independent of wallpaper colors. -->
+    <color name="ic_launcher_background">#1C1C1E</color>
     <color name="startup_background">#101414</color>
     <color name="cover">#0DFFFFFF</color>
     <color name="color_surface">#FF121212</color>
