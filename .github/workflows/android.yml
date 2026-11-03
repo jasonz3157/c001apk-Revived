@@ -2,62 +2,146 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      existing_draft_tag:
+        description: 'Optional existing draft tag to reuse'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - name: Set up Java 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
-          java-version: 21
+          java-version: '21'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          gradle-home-cache-cleanup: true
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0'
+          log-accepted-android-sdk-licenses: false
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
-      - name: Build with Gradle
-        run: ./gradlew assembleRelease -Pandroid.newDsl=false -Pandroid.builtInKotlin=false
+      - name: Configure release signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.p12"
+          keytool -list -keystore "$RUNNER_TEMP/release.p12" \
+            -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" > /dev/null
+          printf 'KEYSTORE_PATH=%s\nKEYSTORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n' \
+            "$RUNNER_TEMP/release.p12" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
+            > local.properties
+          keytool -exportcert -rfc -keystore "$RUNNER_TEMP/release.p12" \
+            -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" \
+            -file "$RUNNER_TEMP/signing-certificate.pem"
 
-      - name: Get Build Tool Version
+      - name: Build signed Release APK and run unit tests
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace --max-workers=2 \
+            :app:assembleRelease :app:testReleaseUnitTest :media-support:testReleaseUnitTest
+
+      - name: Verify APK signature and prepare checksums
+        id: apk
         shell: bash
         run: |
-          BUILD_TOOL_VERSION=$(ls /usr/local/lib/android/sdk/build-tools/ | tail -n 1)
-          echo "BUILD_TOOL_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
-          echo "Last build tool version is: $BUILD_TOOL_VERSION"
+          set -euo pipefail
+          mapfile -t apks < <(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -type f)
+          test "${#apks[@]}" -eq 1
+          apk="${apks[0]}"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" \
+            | tee "$RUNNER_TEMP/apk-signature.txt"
+          grep -F 'Signer #1 certificate SHA-256 digest: 327ecf7831c68b7fb755508a7e61bffdb00a275cdf92f6d091f3993d05597f28' \
+            "$RUNNER_TEMP/apk-signature.txt"
+          tag="$(git rev-list HEAD --count)-$(git rev-parse --short HEAD)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "path=$apk" >> "$GITHUB_OUTPUT"
+          (cd "$(dirname "$apk")" && sha256sum "$(basename "$apk")" > SHA256SUMS)
 
-      - name: Sign Release
-        env:
-          SIGNING_KEY: ${{ secrets.KEYSTORE_BASE64 }}
-          BUILD_TOOLS_VERSION: ${{ env.BUILD_TOOL_VERSION }}
-        if: ${{ env.SIGNING_KEY != '' }}
-        continue-on-error: true
-        uses: kevin-david/zipalign-sign-android-release@v2
-        id: sign_app
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-
-      - name: Upload build artifact
-        env:
-          SIGNING_KEY: ${{ secrets.KEYSTORE_BASE64 }}
-        if: ${{ env.SIGNING_KEY != '' }}
-        uses: actions/upload-artifact@v4
+      - name: Upload signed build artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: c001apk-Revived-release
-          path: ${{ steps.sign_app.outputs.signedReleaseFile }}
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.apk.outputs.tag }}
+          APK_PATH: ${{ steps.apk.outputs.path }}
+          EXISTING_DRAFT_TAG: ${{ inputs.existing_draft_tag }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          ## 本次更新
+
+          - 暗色启动图标背景统一为炭黑色 #1C1C1E。
+          - Android 12 及以上使用浅色 Logo，保留折角配色；亮色模式保持原样。
+          - 同步适用于 Revived / 原版及普通 / 圆形图标入口。对应改动：#1。
+
+          ## 安装说明
+
+          这是 jasonz3157 fork 的首个独立签名版本，与上游签名不同。首次切换通常需要先备份收藏和数据，再卸载旧版后安装；后续本 fork 的版本将复用同一签名。
+
+          ## 验证
+
+          Release 构建和单元测试通过，并已使用 apksigner 校验独立签名。手机桌面效果仍需安装后确认。
+
+          附件包含 APK、SHA256SUMS 和公开签名证书。证书不包含私钥。
+          NOTES
+          printf '\n构建提交：%s\n' "$GITHUB_SHA" >> "$RUNNER_TEMP/release-notes.md"
+          if test -n "$EXISTING_DRAFT_TAG"; then
+            test "$(gh release view "$EXISTING_DRAFT_TAG" --json isDraft --jq .isDraft)" = true
+            gh release edit "$EXISTING_DRAFT_TAG" --tag "$RELEASE_TAG" --target "$GITHUB_SHA" \
+              --title "$RELEASE_TAG · 暗色启动图标修复" --notes-file "$RUNNER_TEMP/release-notes.md"
+          else
+            gh release create "$RELEASE_TAG" --draft --target "$GITHUB_SHA" \
+              --title "$RELEASE_TAG · 暗色启动图标修复" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+          gh release upload "$RELEASE_TAG" "$APK_PATH" \
+            app/build/outputs/apk/release/SHA256SUMS "$RUNNER_TEMP/signing-certificate.pem" --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest
+
+      - name: Remove temporary signing material
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/release.p12" local.properties
