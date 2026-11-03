@@ -72,7 +72,7 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon --stacktrace --max-workers=2 \
-            :app:assembleRelease :app:testReleaseUnitTest :media-support:testReleaseUnitTest
+            :app:assembleRelease :app:testDebugUnitTest :media-support:testDebugUnitTest
 
       - name: Verify APK signature and prepare checksums
         id: apk
