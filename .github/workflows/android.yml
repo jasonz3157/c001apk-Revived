@@ -82,11 +82,14 @@ jobs:
           mapfile -t apks < <(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -type f)
           test "${#apks[@]}" -eq 1
           apk="${apks[0]}"
+          tag="$(git rev-list HEAD --count)-$(git rev-parse --short HEAD)"
+          safe_apk="$(dirname "$apk")/c001apk-Revived_$tag.apk"
+          mv -- "$apk" "$safe_apk"
+          apk="$safe_apk"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" \
             | tee "$RUNNER_TEMP/apk-signature.txt"
           grep -F 'Signer #1 certificate SHA-256 digest: 327ecf7831c68b7fb755508a7e61bffdb00a275cdf92f6d091f3993d05597f28' \
             "$RUNNER_TEMP/apk-signature.txt"
-          tag="$(git rev-list HEAD --count)-$(git rev-parse --short HEAD)"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "path=$apk" >> "$GITHUB_OUTPUT"
           (cd "$(dirname "$apk")" && sha256sum "$(basename "$apk")" > SHA256SUMS)
