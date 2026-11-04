@@ -68,6 +68,7 @@ data class UserPreferencesCompat(
     val pendingDeviceIdLogin: Long = 0,
     val autoCheckClientUpdate: Boolean = true,
     val lastClientUpdateCheck: Long = 0,
+    val blockedKeywords: String = "",
 ) {
     constructor(original: UserPreferences) : this(
         themeMode = original.themeMode,
@@ -124,6 +125,7 @@ data class UserPreferencesCompat(
         pendingDeviceIdLogin = original.pendingDeviceIdLogin,
         autoCheckClientUpdate = if (original.hasAutoCheckClientUpdate()) original.autoCheckClientUpdate else true,
         lastClientUpdateCheck = original.lastClientUpdateCheck,
+        blockedKeywords = original.blockedKeywords,
     )
 
     @Composable
@@ -188,6 +190,7 @@ data class UserPreferencesCompat(
         .setPendingDeviceIdLogin(pendingDeviceIdLogin)
         .setAutoCheckClientUpdate(autoCheckClientUpdate)
         .setLastClientUpdateCheck(lastClientUpdateCheck)
+        .setBlockedKeywords(blockedKeywords)
         .build()
 
     companion object {

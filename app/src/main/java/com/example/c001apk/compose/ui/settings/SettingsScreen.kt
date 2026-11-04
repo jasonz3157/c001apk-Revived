@@ -135,6 +135,12 @@ fun SettingsScreen(
     val followList by lazy { listOf("全部", "好友", "话题", "数码", "应用") }
     val hapticStrengthList by lazy { HapticStrength.options.map { it.label } }
 
+    var showKeywordDialog by rememberSaveable { mutableStateOf(false) }
+    var keywordDraft by rememberSaveable { mutableStateOf("") }
+    val openKeywords = {
+        keywordDraft = prefs.blockedKeywords
+        showKeywordDialog = true
+    }
     var showSZLMIDDialog by rememberSaveable { mutableStateOf(false) }
     var showFontScaleDialog by rememberSaveable { mutableStateOf(false) }
     var showContentScaleDialog by rememberSaveable { mutableStateOf(false) }
@@ -170,6 +176,7 @@ fun SettingsScreen(
                     onIcon = { showLauncherIconDialog = true },
                     onDeviceId = { showSZLMIDDialog = true },
                     onParams = onParamsClick, onAbout = onAboutClick, onBlacklist = onViewBlackList,
+                    onKeywords = openKeywords,
                     onHapticStrength = showHapticStrengthDialogClick,
                     onClearCache = { cacheSize = getTotalCacheSize(context); showCleanCacheDialog = true },
                 )
@@ -273,6 +280,12 @@ fun SettingsScreen(
                 ) {
                     onViewBlackList(BlackListType.TOPIC.name)
                 }
+                BasicListItem(
+                    leadingImageVector = Icons.Outlined.Block,
+                    headlineText = "关键字屏蔽",
+                    supportingText = "命中任意关键字即隐藏动态，刷新后生效",
+                    onClick = openKeywords,
+                )
                 BasicListItem(
                     leadingImageVector = Icons.Outlined.TextFields,
                     headlineText = "字体大小",
@@ -419,7 +432,32 @@ fun SettingsScreen(
             }
         }
 
-        when {
+        if (showKeywordDialog) {
+        AlertDialog(
+            onDismissRequest = { showKeywordDialog = false },
+            title = { Text("关键字屏蔽") },
+            text = {
+                Column {
+                    Text("每行一个关键字，按文字包含匹配，不区分英文大小写。匹配动态标题、正文及转发内容；清空后保存可取消屏蔽。保存后刷新信息流生效。")
+                    OutlinedTextField(
+                        value = keywordDraft,
+                        onValueChange = { keywordDraft = it },
+                        modifier = Modifier.fillMaxWidth().height(200.dp),
+                        placeholderText = "例如：【点评】",
+                    )
+                    viewModel.keywordSaveError?.let { Text(it) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.saveBlockedKeywords(keywordDraft) { showKeywordDialog = false }
+                }) { Text("保存") }
+            },
+            dismissButton = { TextButton(onClick = { showKeywordDialog = false }) { Text("取消") } },
+        )
+    }
+
+    when {
             showLauncherIconDialog -> {
                 LauncherIconDialog(
                     current = viewModel.launcherIcon,

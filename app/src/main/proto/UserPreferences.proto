@@ -58,6 +58,7 @@ message UserPreferences {
   int64 pendingDeviceIdLogin = 52;
   optional bool autoCheckClientUpdate = 53;
   int64 lastClientUpdateCheck = 54;
+  string blockedKeywords = 55;
 }
 
 message SavedAccount {

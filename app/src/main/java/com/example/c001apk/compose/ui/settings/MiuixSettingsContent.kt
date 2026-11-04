@@ -42,6 +42,7 @@ internal fun MiuixSettingsContent(
     onParams: () -> Unit,
     onAbout: () -> Unit,
     onBlacklist: (String) -> Unit,
+    onKeywords: () -> Unit,
     onHapticStrength: () -> Unit,
     onClearCache: () -> Unit,
 ) {
@@ -73,6 +74,7 @@ internal fun MiuixSettingsContent(
     PreferenceGroup("屏蔽") {
         PreferenceLink("用户黑名单", onClick = { onBlacklist(BlackListType.USER.name) })
         PreferenceLink("话题黑名单", onClick = { onBlacklist(BlackListType.TOPIC.name) })
+        PreferenceLink("关键字屏蔽", "命中任意关键字即隐藏动态，刷新后生效", onClick = onKeywords)
     }
     PreferenceGroup("触感") {
         SwitchListItem(prefs.hapticFeedback, Icons.Outlined.TouchApp, "触感反馈", onValueChanged = viewModel::setHapticFeedback)

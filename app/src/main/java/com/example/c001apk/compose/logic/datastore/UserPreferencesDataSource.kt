@@ -15,6 +15,10 @@ class UserPreferencesDataSource @Inject constructor(
 ) {
     val data get() = userPreferences.data
 
+    suspend fun setBlockedKeywords(value: String) = withContext(Dispatchers.IO) {
+        userPreferences.updateData { it.copy(blockedKeywords = value) }
+    }
+
     suspend fun setBlurScope(value: com.example.c001apk.compose.BlurScope) = withContext(Dispatchers.IO) {
         userPreferences.updateData { it.copy(blurScope = value) }
     }

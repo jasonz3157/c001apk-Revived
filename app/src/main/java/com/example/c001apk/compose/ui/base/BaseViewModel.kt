@@ -76,6 +76,7 @@ abstract class BaseViewModel(
 
                     is LoadingState.Success -> {
                         page++
+                        val keywordRules = blackListRepo.keywordRules()
                         var response = state.response.filter {
                             ((it.entityType in entityTypeList
                                     || it.entityTemplate in
@@ -99,8 +100,8 @@ abstract class BaseViewModel(
                                         it.relationRows?.getOrNull(0)?.title
                             )
                         }
-                        firstItem = response.firstOrNull()?.id
-                        lastItem = response.lastOrNull()?.id
+                        firstItem = state.response.firstOrNull()?.id
+                        lastItem = state.response.lastOrNull()?.id
 
                         handleResponse(response)?.let {
                             response = it
@@ -116,6 +117,9 @@ abstract class BaseViewModel(
                             response = it
                         }
 
+                        response = response.filterNot {
+                            com.example.c001apk.compose.util.KeywordFilter.blocksFeed(it, keywordRules)
+                        }
                         loadingState = LoadingState.Success(response)
                         footerState = FooterState.Success
                         if (response.isEmpty()) {
