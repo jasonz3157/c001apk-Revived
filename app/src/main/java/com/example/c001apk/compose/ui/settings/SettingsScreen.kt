@@ -267,7 +267,7 @@ fun SettingsScreen(
                     viewModel.setPureBlack(it)
                 }
 
-                BasicListItem(leadingText = "显示")
+                BasicListItem(leadingText = "屏蔽")
                 BasicListItem(
                     leadingImageVector = Icons.Outlined.Block,
                     headlineText = "用户黑名单",
@@ -286,6 +286,7 @@ fun SettingsScreen(
                     supportingText = "命中任意关键字即隐藏动态，刷新后生效",
                     onClick = openKeywords,
                 )
+                BasicListItem(leadingText = "显示")
                 BasicListItem(
                     leadingImageVector = Icons.Outlined.TextFields,
                     headlineText = "字体大小",
