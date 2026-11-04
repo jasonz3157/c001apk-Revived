@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/android.yml']
   workflow_dispatch:
     inputs:
       existing_draft_tag:
@@ -17,7 +20,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]'))
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -117,13 +120,15 @@ jobs:
           cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
           ## 本次更新
 
-          - 暗色启动图标背景统一为炭黑色 #1C1C1E。
-          - Android 12 及以上使用浅色 Logo，保留折角配色；亮色模式保持原样。
-          - 同步适用于 Revived / 原版及普通 / 圆形图标入口。对应改动：#1。
+          - 新增“设置 → 屏蔽 → 关键字屏蔽”，支持 miuix 与 MD3。
+          - 每行一个关键字，动态标题、正文或转发内容包含任意关键字即隐藏整张卡片；保存后刷新生效。
+          - 关键字按字面包含匹配，不区分英文大小写；忽略空行与重复条目，重启后保留，清空保存可解除屏蔽。
+          - 匹配 HTML 解码后的可见文字，评论和私信不受影响。对应改动：#3。
+          - 包含此前 miuix“我的”页面闪退修复和暗色启动图标调整。
 
           ## 安装说明
 
-          这是 jasonz3157 fork 的首个独立签名版本，与上游签名不同。首次切换通常需要先备份收藏和数据，再卸载旧版后安装；后续本 fork 的版本将复用同一签名。
+          此版本复用本 fork 已发布版本的独立签名，可覆盖升级并保留数据。从上游原版首次切换时，因签名不同，通常需要先备份数据，再卸载旧版后安装。
 
           ## 验证
 
@@ -135,10 +140,10 @@ jobs:
           if test -n "$EXISTING_DRAFT_TAG"; then
             test "$(gh release view "$EXISTING_DRAFT_TAG" --json isDraft --jq .isDraft)" = true
             gh release edit "$EXISTING_DRAFT_TAG" --tag "$RELEASE_TAG" --target "$GITHUB_SHA" \
-              --title "$RELEASE_TAG · 暗色启动图标修复" --notes-file "$RUNNER_TEMP/release-notes.md"
+              --title "$RELEASE_TAG · 关键字屏蔽" --notes-file "$RUNNER_TEMP/release-notes.md"
           else
             gh release create "$RELEASE_TAG" --draft --target "$GITHUB_SHA" \
-              --title "$RELEASE_TAG · 暗色启动图标修复" --notes-file "$RUNNER_TEMP/release-notes.md"
+              --title "$RELEASE_TAG · 关键字屏蔽" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
           gh release upload "$RELEASE_TAG" "$APK_PATH" \
             app/build/outputs/apk/release/SHA256SUMS "$RUNNER_TEMP/signing-certificate.pem" --clobber
