@@ -7,6 +7,7 @@ import com.example.c001apk.compose.logic.dao.StringEntityDao
 import com.example.c001apk.compose.logic.model.StringEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,7 +18,11 @@ class BlackListRepo @Inject constructor(
     private val userBlackListDao: StringEntityDao,
     @param:TopicBlackList
     private val topicBlackListDao: StringEntityDao,
+    private val preferences: UserPreferencesRepository,
 ) {
+
+    suspend fun keywordRules(): List<String> =
+        com.example.c001apk.compose.util.KeywordFilter.parse(preferences.data.first().blockedKeywords)
 
     fun loadAllUserListLive(): LiveData<List<StringEntity>> {
         return userBlackListDao.loadAllListLive()

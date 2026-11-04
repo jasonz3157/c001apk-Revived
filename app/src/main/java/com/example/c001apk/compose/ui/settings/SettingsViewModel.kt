@@ -28,6 +28,21 @@ class SettingsViewModel @Inject constructor(
     private val launcherIconManager: LauncherIconManager,
     private val deviceIdentity: com.example.c001apk.compose.logic.repository.DeviceIdentityRepository,
 ) : PrefsViewModel(userPreferencesRepository) {
+    var keywordSaveError by mutableStateOf<String?>(null)
+        private set
+
+    fun saveBlockedKeywords(value: String, onSaved: () -> Unit) {
+        keywordSaveError = null
+        viewModelScope.launch {
+            try {
+                val normalized = com.example.c001apk.compose.util.KeywordFilter.parse(value).joinToString("\n")
+                userPreferencesRepository.setBlockedKeywords(normalized)
+                onSaved()
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { keywordSaveError = "保存失败，请重试" }
+        }
+    }
+
     var acquiringDeviceId by mutableStateOf(false)
         private set
     var deviceIdMessage by mutableStateOf<String?>(null)

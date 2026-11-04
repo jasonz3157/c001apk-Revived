@@ -15,6 +15,8 @@ class UserPreferencesRepository @Inject constructor(
 ) {
     val data get() = userPreferencesDataSource.data
 
+    suspend fun setBlockedKeywords(value: String) = userPreferencesDataSource.setBlockedKeywords(value)
+
     suspend fun setBlurScope(value: com.example.c001apk.compose.BlurScope) = userPreferencesDataSource.setBlurScope(value)
 
     suspend fun setBlurEnabled(value: Boolean) = userPreferencesDataSource.setBlurEnabled(value)
